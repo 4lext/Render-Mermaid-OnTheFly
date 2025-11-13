@@ -15,66 +15,43 @@ function initialize() {
   console.log('[Mermaid Content] Initializing...');
 }
 
-// Load Mermaid.js library dynamically
+// Initialize Mermaid.js library (pre-loaded via manifest.json)
 function loadMermaid() {
   console.log('[Mermaid Content] loadMermaid called, mermaidLoaded:', mermaidLoaded);
 
   if (mermaidLoaded && window.mermaid) {
-    console.log('[Mermaid Content] Mermaid already loaded');
+    console.log('[Mermaid Content] Mermaid already initialized');
     return Promise.resolve();
   }
 
   if (mermaidLoadingPromise) {
-    console.log('[Mermaid Content] Mermaid loading in progress, returning existing promise');
+    console.log('[Mermaid Content] Mermaid initialization in progress, returning existing promise');
     return mermaidLoadingPromise;
   }
 
   mermaidLoadingPromise = new Promise((resolve, reject) => {
-    console.log('[Mermaid Content] Starting to load Mermaid library...');
+    console.log('[Mermaid Content] Initializing Mermaid library...');
 
-    // Get the extension URL for the local Mermaid library (using standalone bundle)
-    const mermaidUrl = chrome.runtime.getURL('mermaid/mermaid.min.js');
-    console.log('[Mermaid Content] Mermaid URL:', mermaidUrl);
-
-    // Load the standalone Mermaid bundle via script tag
-    const script = document.createElement('script');
-    script.src = mermaidUrl;
-
-    script.onload = () => {
-      console.log('[Mermaid Content] Script loaded, checking window.mermaid...');
-      if (window.mermaid) {
-        console.log('[Mermaid Content] window.mermaid found, initializing...');
-        try {
-          window.mermaid.initialize({
-            startOnLoad: false,
-            theme: 'default',
-            securityLevel: 'loose'
-          });
-          mermaidLoaded = true;
-          console.log('[Mermaid Content] Mermaid initialized successfully');
-          resolve();
-        } catch (error) {
-          console.error('[Mermaid Content] Error initializing Mermaid:', error);
-          reject(error);
-        }
-      } else {
-        console.error('[Mermaid Content] Script loaded but window.mermaid not available');
-        reject(new Error('Mermaid library loaded but not available on window'));
+    // Mermaid is loaded via manifest.json content_scripts
+    // Check if it's available
+    if (window.mermaid) {
+      console.log('[Mermaid Content] window.mermaid found, initializing...');
+      try {
+        window.mermaid.initialize({
+          startOnLoad: false,
+          theme: 'default',
+          securityLevel: 'loose'
+        });
+        mermaidLoaded = true;
+        console.log('[Mermaid Content] Mermaid initialized successfully');
+        resolve();
+      } catch (error) {
+        console.error('[Mermaid Content] Error initializing Mermaid:', error);
+        reject(error);
       }
-    };
-
-    script.onerror = (error) => {
-      console.error('[Mermaid Content] Error loading Mermaid script:', error);
-      reject(new Error('Failed to load Mermaid library from extension'));
-    };
-
-    console.log('[Mermaid Content] Appending script to document head');
-    try {
-      document.head.appendChild(script);
-      console.log('[Mermaid Content] Script appended successfully');
-    } catch (error) {
-      console.error('[Mermaid Content] Error appending script:', error);
-      reject(error);
+    } else {
+      console.error('[Mermaid Content] window.mermaid not available - check manifest.json content_scripts');
+      reject(new Error('Mermaid library not available. Extension may not be properly configured.'));
     }
   });
 
