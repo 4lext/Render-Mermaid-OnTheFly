@@ -1,46 +1,109 @@
+console.log('[Mermaid Content] Script loaded');
+
+// Track if content script is initialized
+let isInitialized = false;
+let mermaidLoaded = false;
+let mermaidLoadingPromise = null;
+
+// Initialize the content script
+function initialize() {
+  if (isInitialized) {
+    console.log('[Mermaid Content] Already initialized');
+    return;
+  }
+  isInitialized = true;
+  console.log('[Mermaid Content] Initializing...');
+}
+
 // Load Mermaid.js library dynamically
 function loadMermaid() {
-  return new Promise((resolve, reject) => {
-    if (window.mermaid) {
-      resolve();
-      return;
-    }
+  console.log('[Mermaid Content] loadMermaid called, mermaidLoaded:', mermaidLoaded);
 
+  if (mermaidLoaded && window.mermaid) {
+    console.log('[Mermaid Content] Mermaid already loaded');
+    return Promise.resolve();
+  }
+
+  if (mermaidLoadingPromise) {
+    console.log('[Mermaid Content] Mermaid loading in progress, returning existing promise');
+    return mermaidLoadingPromise;
+  }
+
+  mermaidLoadingPromise = new Promise((resolve, reject) => {
+    console.log('[Mermaid Content] Starting to load Mermaid library...');
+
+    // Use the UMD version which works better in content scripts
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-    script.type = 'module';
+    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+    script.type = 'text/javascript';
+
     script.onload = () => {
-      // Import and initialize mermaid
-      import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs')
-        .then(m => {
-          window.mermaid = m.default;
-          window.mermaid.initialize({
-            startOnLoad: false,
-            theme: 'default',
-            securityLevel: 'loose'
-          });
-          resolve();
-        })
-        .catch(reject);
+      console.log('[Mermaid Content] Mermaid script loaded');
+
+      // Wait a bit for mermaid to be available
+      setTimeout(() => {
+        if (window.mermaid) {
+          console.log('[Mermaid Content] window.mermaid is available');
+          try {
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              logLevel: 'debug'
+            });
+            console.log('[Mermaid Content] Mermaid initialized successfully');
+            mermaidLoaded = true;
+            resolve();
+          } catch (error) {
+            console.error('[Mermaid Content] Error initializing Mermaid:', error);
+            reject(error);
+          }
+        } else {
+          console.error('[Mermaid Content] window.mermaid is not available after script load');
+          reject(new Error('Mermaid library not found after loading'));
+        }
+      }, 100);
     };
-    script.onerror = reject;
-    document.head.appendChild(script);
+
+    script.onerror = (error) => {
+      console.error('[Mermaid Content] Error loading Mermaid script:', error);
+      reject(new Error('Failed to load Mermaid library from CDN'));
+    };
+
+    console.log('[Mermaid Content] Appending script to document head');
+    try {
+      document.head.appendChild(script);
+      console.log('[Mermaid Content] Script appended successfully');
+    } catch (error) {
+      console.error('[Mermaid Content] Error appending script:', error);
+      reject(error);
+    }
   });
+
+  return mermaidLoadingPromise;
 }
 
 // Create overlay with Mermaid diagram
 async function createMermaidOverlay(mermaidCode) {
+  console.log('[Mermaid Content] createMermaidOverlay called');
+  console.log('[Mermaid Content] Mermaid code length:', mermaidCode.length);
+  console.log('[Mermaid Content] Mermaid code preview:', mermaidCode.substring(0, 200));
+
   try {
     // Load Mermaid if not already loaded
+    console.log('[Mermaid Content] Loading Mermaid library...');
     await loadMermaid();
+    console.log('[Mermaid Content] Mermaid library loaded successfully');
 
     // Remove existing overlay if present
     const existingOverlay = document.getElementById('mermaid-overlay');
     if (existingOverlay) {
+      console.log('[Mermaid Content] Removing existing overlay');
       existingOverlay.remove();
     }
 
     // Create overlay container
+    console.log('[Mermaid Content] Creating overlay elements...');
     const overlay = document.createElement('div');
     overlay.id = 'mermaid-overlay';
     overlay.className = 'mermaid-overlay';
@@ -79,37 +142,68 @@ async function createMermaidOverlay(mermaidCode) {
     overlay.appendChild(header);
     overlay.appendChild(content);
     document.body.appendChild(overlay);
+    console.log('[Mermaid Content] Overlay elements created and appended to body');
 
     // Render Mermaid diagram
+    console.log('[Mermaid Content] Starting to render diagram...');
     try {
-      const { svg } = await window.mermaid.render('mermaid-svg-' + Date.now(), mermaidCode);
-      diagramWrapper.innerHTML = svg;
+      const renderResult = await window.mermaid.render('mermaid-svg-' + Date.now(), mermaidCode);
+      console.log('[Mermaid Content] Render result:', renderResult);
+
+      if (renderResult && renderResult.svg) {
+        diagramWrapper.innerHTML = renderResult.svg;
+        console.log('[Mermaid Content] Diagram rendered successfully');
+      } else {
+        throw new Error('Render result does not contain SVG');
+      }
     } catch (error) {
+      console.error('[Mermaid Content] Error rendering diagram:', error);
+      console.error('[Mermaid Content] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+
       diagramWrapper.innerHTML = `
         <div class="mermaid-error">
           <h3>Error rendering Mermaid diagram</h3>
-          <p>${error.message}</p>
+          <p><strong>Error:</strong> ${error.message || 'Unknown error'}</p>
+          <p><strong>Code preview:</strong></p>
           <pre>${mermaidCode}</pre>
+          <p style="margin-top: 15px; font-size: 12px; color: #666;">
+            Check the browser console (F12) for detailed error information.
+          </p>
         </div>
       `;
-      console.error('Mermaid rendering error:', error);
     }
 
     // Initialize zoom and pan functionality
+    console.log('[Mermaid Content] Initializing zoom and pan...');
     initializeZoomPan(overlay, diagramContainer, diagramWrapper);
 
     // Initialize controls
+    console.log('[Mermaid Content] Initializing controls...');
     initializeControls(overlay, diagramWrapper);
 
     // Make overlay draggable
+    console.log('[Mermaid Content] Making overlay draggable...');
     makeOverlayDraggable(overlay, header);
 
     // Make overlay resizable
+    console.log('[Mermaid Content] Making overlay resizable...');
     makeOverlayResizable(overlay);
 
+    console.log('[Mermaid Content] Overlay creation complete!');
+
   } catch (error) {
-    console.error('Error creating Mermaid overlay:', error);
-    alert('Failed to load Mermaid library. Please check your internet connection.');
+    console.error('[Mermaid Content] Fatal error creating Mermaid overlay:', error);
+    console.error('[Mermaid Content] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+
+    alert(`Failed to load Mermaid library.\n\nError: ${error.message}\n\nPlease check:\n1. Internet connection\n2. Browser console (F12) for details`);
   }
 }
 
@@ -210,84 +304,111 @@ function initializeZoomPan(overlay, container, wrapper) {
 function initializeControls(overlay, diagramWrapper) {
   // Close button
   overlay.querySelector('#close-overlay').addEventListener('click', () => {
+    console.log('[Mermaid Content] Close button clicked');
     overlay.remove();
   });
 
   // Zoom controls
   overlay.querySelector('#zoom-in').addEventListener('click', () => {
+    console.log('[Mermaid Content] Zoom in clicked');
     overlay.zoomIn();
   });
 
   overlay.querySelector('#zoom-out').addEventListener('click', () => {
+    console.log('[Mermaid Content] Zoom out clicked');
     overlay.zoomOut();
   });
 
   overlay.querySelector('#zoom-reset').addEventListener('click', () => {
+    console.log('[Mermaid Content] Zoom reset clicked');
     overlay.zoomReset();
   });
 
   // Export to PNG
   overlay.querySelector('#export-png').addEventListener('click', () => {
+    console.log('[Mermaid Content] Export PNG clicked');
     exportToPNG(diagramWrapper);
   });
 }
 
 // Export diagram to PNG
 function exportToPNG(diagramWrapper) {
+  console.log('[Mermaid Content] exportToPNG called');
+
   const svgElement = diagramWrapper.querySelector('svg');
   if (!svgElement) {
+    console.error('[Mermaid Content] No SVG element found for export');
     alert('No diagram to export');
     return;
   }
 
-  // Clone the SVG to avoid modifying the original
-  const clonedSvg = svgElement.cloneNode(true);
+  console.log('[Mermaid Content] SVG element found, starting export...');
 
-  // Get SVG dimensions
-  const bbox = svgElement.getBBox();
-  const width = bbox.width || svgElement.width.baseVal.value || 800;
-  const height = bbox.height || svgElement.height.baseVal.value || 600;
+  try {
+    // Clone the SVG to avoid modifying the original
+    const clonedSvg = svgElement.cloneNode(true);
 
-  // Set dimensions on cloned SVG
-  clonedSvg.setAttribute('width', width);
-  clonedSvg.setAttribute('height', height);
-  clonedSvg.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${width} ${height}`);
+    // Get SVG dimensions
+    const bbox = svgElement.getBBox();
+    const width = bbox.width || svgElement.width.baseVal.value || 800;
+    const height = bbox.height || svgElement.height.baseVal.value || 600;
 
-  // Serialize SVG to string
-  const svgData = new XMLSerializer().serializeToString(clonedSvg);
-  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(svgBlob);
+    console.log('[Mermaid Content] SVG dimensions:', { width, height });
 
-  // Create canvas to convert SVG to PNG
-  const canvas = document.createElement('canvas');
-  canvas.width = width * 2; // 2x for better quality
-  canvas.height = height * 2;
-  const ctx = canvas.getContext('2d');
+    // Set dimensions on cloned SVG
+    clonedSvg.setAttribute('width', width);
+    clonedSvg.setAttribute('height', height);
+    clonedSvg.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${width} ${height}`);
 
-  const img = new Image();
-  img.onload = () => {
-    // Fill white background
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Serialize SVG to string
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
 
-    // Draw SVG
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // Create canvas to convert SVG to PNG
+    const canvas = document.createElement('canvas');
+    canvas.width = width * 2; // 2x for better quality
+    canvas.height = height * 2;
+    const ctx = canvas.getContext('2d');
 
-    // Convert to PNG and download
-    canvas.toBlob((blob) => {
-      const pngUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = `mermaid-diagram-${Date.now()}.png`;
-      link.href = pngUrl;
-      link.click();
+    const img = new Image();
+    img.onload = () => {
+      console.log('[Mermaid Content] Image loaded, converting to PNG...');
 
-      // Cleanup
-      URL.revokeObjectURL(pngUrl);
+      // Fill white background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw SVG
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Convert to PNG and download
+      canvas.toBlob((blob) => {
+        const pngUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `mermaid-diagram-${Date.now()}.png`;
+        link.href = pngUrl;
+        link.click();
+
+        console.log('[Mermaid Content] PNG export complete');
+
+        // Cleanup
+        URL.revokeObjectURL(pngUrl);
+        URL.revokeObjectURL(url);
+      });
+    };
+
+    img.onerror = (error) => {
+      console.error('[Mermaid Content] Error loading image for export:', error);
+      alert('Failed to export diagram as PNG');
       URL.revokeObjectURL(url);
-    });
-  };
+    };
 
-  img.src = url;
+    img.src = url;
+  } catch (error) {
+    console.error('[Mermaid Content] Error in exportToPNG:', error);
+    alert('Failed to export diagram: ' + error.message);
+  }
 }
 
 // Make overlay draggable
@@ -358,7 +479,31 @@ function makeOverlayResizable(overlay) {
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'renderMermaid') {
-    createMermaidOverlay(message.mermaidCode);
+  console.log('[Mermaid Content] Message received:', message);
+
+  if (message.action === 'ping') {
+    console.log('[Mermaid Content] Ping received, responding with ready status');
+    sendResponse({ status: 'ready', initialized: isInitialized });
+    return true;
   }
+
+  if (message.action === 'renderMermaid') {
+    console.log('[Mermaid Content] Render request received');
+    createMermaidOverlay(message.mermaidCode)
+      .then(() => {
+        console.log('[Mermaid Content] Render completed successfully');
+        sendResponse({ success: true });
+      })
+      .catch((error) => {
+        console.error('[Mermaid Content] Render failed:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // Keep the message channel open for async response
+  }
+
+  return false;
 });
+
+// Initialize on load
+initialize();
+console.log('[Mermaid Content] Content script ready');

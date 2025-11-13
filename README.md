@@ -125,6 +125,8 @@ This extension supports all Mermaid diagram types:
 
 - `contextMenus`: To add the "Render Mermaid" option
 - `activeTab`: To inject the overlay into the current page
+- `scripting`: To dynamically inject content scripts when needed
+- `notifications`: To show error notifications to users
 
 ### Browser Compatibility
 
@@ -134,23 +136,31 @@ This extension supports all Mermaid diagram types:
 
 ## Troubleshooting
 
-### Diagram doesn't render
+For detailed debugging instructions, see **[DEBUGGING.md](DEBUGGING.md)**.
 
+### Quick Fixes
+
+**Diagram doesn't render:**
 - Check if the selected text is valid Mermaid syntax
-- Open the browser console (F12) to see error messages
+- Open the browser console (F12) to see detailed error messages
 - Ensure you have an internet connection (required to load Mermaid.js)
+- Look for `[Mermaid Content]` messages in console
 
-### Overlay doesn't appear
-
+**Overlay doesn't appear:**
 - Check if the extension is enabled in `chrome://extensions/`
+- Reload the extension (click the refresh icon)
 - Refresh the page and try again
 - Check the console for JavaScript errors
 
-### Export doesn't work
-
+**Export doesn't work:**
 - Ensure the diagram rendered successfully first
 - Check browser permissions for downloads
 - Try a different browser if the issue persists
+
+**"Could not establish connection" error:**
+- This is automatically fixed in v1.1.0+
+- If you still see this, try reloading the extension
+- See DEBUGGING.md for more details
 
 ## Development
 
