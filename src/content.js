@@ -6,24 +6,29 @@ function loadMermaid() {
       return;
     }
 
-    // Get the extension URL for the local Mermaid library
-    const mermaidUrl = chrome.runtime.getURL('mermaid/mermaid.esm.min.mjs');
+    // Get the extension URL for the local Mermaid library (using standalone bundle)
+    const mermaidUrl = chrome.runtime.getURL('mermaid/mermaid.min.js');
 
-    // Import the local Mermaid module
-    import(mermaidUrl)
-      .then(m => {
-        window.mermaid = m.default;
+    // Load the standalone Mermaid bundle via script tag
+    const script = document.createElement('script');
+    script.src = mermaidUrl;
+    script.onload = () => {
+      if (window.mermaid) {
         window.mermaid.initialize({
           startOnLoad: false,
           theme: 'default',
           securityLevel: 'loose'
         });
         resolve();
-      })
-      .catch(err => {
-        console.error('Failed to load Mermaid library:', err);
-        reject(err);
-      });
+      } else {
+        reject(new Error('Mermaid library loaded but not available on window'));
+      }
+    };
+    script.onerror = (err) => {
+      console.error('Failed to load Mermaid library:', err);
+      reject(new Error('Failed to load Mermaid library from extension'));
+    };
+    document.head.appendChild(script);
   });
 }
 
