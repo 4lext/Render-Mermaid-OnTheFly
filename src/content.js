@@ -15,8 +15,8 @@ function initialize() {
   console.log('[Mermaid Content] Initializing...');
 }
 
-// Initialize Mermaid.js library (pre-loaded via manifest.json)
-function loadMermaid() {
+// Load Mermaid.js library by fetching and evaluating it in our context
+async function loadMermaid() {
   console.log('[Mermaid Content] loadMermaid called, mermaidLoaded:', mermaidLoaded);
 
   if (mermaidLoaded && window.mermaid) {
@@ -25,35 +25,62 @@ function loadMermaid() {
   }
 
   if (mermaidLoadingPromise) {
-    console.log('[Mermaid Content] Mermaid initialization in progress, returning existing promise');
+    console.log('[Mermaid Content] Mermaid loading in progress, returning existing promise');
     return mermaidLoadingPromise;
   }
 
-  mermaidLoadingPromise = new Promise((resolve, reject) => {
-    console.log('[Mermaid Content] Initializing Mermaid library...');
+  mermaidLoadingPromise = (async () => {
+    try {
+      console.log('[Mermaid Content] Fetching Mermaid library...');
 
-    // Mermaid is loaded via manifest.json content_scripts
-    // Check if it's available
-    if (window.mermaid) {
-      console.log('[Mermaid Content] window.mermaid found, initializing...');
-      try {
+      // Get the Mermaid library URL from the extension
+      const mermaidUrl = chrome.runtime.getURL('mermaid/mermaid.min.js');
+      console.log('[Mermaid Content] Mermaid URL:', mermaidUrl);
+
+      // Fetch the library code
+      const response = await fetch(mermaidUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Mermaid: ${response.statusText}`);
+      }
+
+      const mermaidCode = await response.text();
+      console.log('[Mermaid Content] Mermaid code fetched, length:', mermaidCode.length);
+
+      // Evaluate the code in a way that makes mermaid available
+      // Wrap it to ensure proper context
+      const wrappedCode = `
+        (function() {
+          var module = undefined;
+          var exports = undefined;
+          ${mermaidCode}
+          return (typeof mermaid !== 'undefined') ? mermaid : null;
+        })();
+      `;
+
+      console.log('[Mermaid Content] Evaluating Mermaid code...');
+      const mermaidLib = eval(wrappedCode);
+
+      if (mermaidLib) {
+        window.mermaid = mermaidLib;
+        console.log('[Mermaid Content] Mermaid assigned to window, initializing...');
+
         window.mermaid.initialize({
           startOnLoad: false,
           theme: 'default',
           securityLevel: 'loose'
         });
+
         mermaidLoaded = true;
         console.log('[Mermaid Content] Mermaid initialized successfully');
-        resolve();
-      } catch (error) {
-        console.error('[Mermaid Content] Error initializing Mermaid:', error);
-        reject(error);
+      } else {
+        throw new Error('Mermaid library loaded but not available');
       }
-    } else {
-      console.error('[Mermaid Content] window.mermaid not available - check manifest.json content_scripts');
-      reject(new Error('Mermaid library not available. Extension may not be properly configured.'));
+    } catch (error) {
+      console.error('[Mermaid Content] Error loading Mermaid:', error);
+      mermaidLoadingPromise = null;
+      throw error;
     }
-  });
+  })();
 
   return mermaidLoadingPromise;
 }
