@@ -1,39 +1,39 @@
-// Load Mermaid.js library dynamically
-function loadMermaid() {
-  return new Promise((resolve, reject) => {
-    if (window.mermaid) {
-      resolve();
-      return;
-    }
+// Content script for rendering Mermaid diagrams
+// Handles overlay creation, rendering, and user interactions
 
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-    script.type = 'module';
-    script.onload = () => {
-      // Import and initialize mermaid
-      import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs')
-        .then(m => {
-          window.mermaid = m.default;
-          window.mermaid.initialize({
-            startOnLoad: false,
-            theme: 'default',
-            securityLevel: 'loose'
-          });
-          resolve();
-        })
-        .catch(reject);
-    };
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
+import mermaid from 'mermaid';
+
+// Initialize Mermaid
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'default',
+  securityLevel: 'loose'
+});
+
+// Message types
+interface RenderMermaidMessage {
+  action: 'renderMermaid';
+  mermaidCode: string;
+}
+
+// Zoom state interface
+interface ZoomState {
+  scale: number;
+  translateX: number;
+  translateY: number;
+}
+
+// Extended overlay element with zoom methods
+interface MermaidOverlay extends HTMLDivElement {
+  zoomState: ZoomState;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  zoomReset: () => void;
 }
 
 // Create overlay with Mermaid diagram
-async function createMermaidOverlay(mermaidCode) {
+async function createMermaidOverlay(mermaidCode: string): Promise<void> {
   try {
-    // Load Mermaid if not already loaded
-    await loadMermaid();
-
     // Remove existing overlay if present
     const existingOverlay = document.getElementById('mermaid-overlay');
     if (existingOverlay) {
@@ -41,7 +41,7 @@ async function createMermaidOverlay(mermaidCode) {
     }
 
     // Create overlay container
-    const overlay = document.createElement('div');
+    const overlay = document.createElement('div') as MermaidOverlay;
     overlay.id = 'mermaid-overlay';
     overlay.className = 'mermaid-overlay';
 
@@ -82,13 +82,14 @@ async function createMermaidOverlay(mermaidCode) {
 
     // Render Mermaid diagram
     try {
-      const { svg } = await window.mermaid.render('mermaid-svg-' + Date.now(), mermaidCode);
+      const { svg } = await mermaid.render('mermaid-svg-' + Date.now(), mermaidCode);
       diagramWrapper.innerHTML = svg;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       diagramWrapper.innerHTML = `
         <div class="mermaid-error">
           <h3>Error rendering Mermaid diagram</h3>
-          <p>${error.message}</p>
+          <p>${errorMessage}</p>
           <pre>${mermaidCode}</pre>
         </div>
       `;
@@ -109,15 +110,20 @@ async function createMermaidOverlay(mermaidCode) {
 
   } catch (error) {
     console.error('Error creating Mermaid overlay:', error);
-    alert('Failed to load Mermaid library. Please check your internet connection.');
+    alert('Failed to create Mermaid overlay. Please check the console for details.');
   }
 }
 
 // Initialize zoom and pan functionality
-function initializeZoomPan(overlay, container, wrapper) {
+function initializeZoomPan(
+  overlay: MermaidOverlay,
+  container: HTMLElement,
+  wrapper: HTMLElement
+): void {
   let scale = 1;
   let isPanning = false;
-  let startX, startY;
+  let startX = 0;
+  let startY = 0;
   let translateX = 0;
   let translateY = 0;
 
@@ -128,19 +134,19 @@ function initializeZoomPan(overlay, container, wrapper) {
     translateY: 0
   };
 
-  function updateTransform() {
+  function updateTransform(): void {
     wrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
     overlay.zoomState = { scale, translateX, translateY };
 
     // Update zoom display
-    const zoomResetBtn = overlay.querySelector('#zoom-reset');
+    const zoomResetBtn = overlay.querySelector('#zoom-reset') as HTMLButtonElement;
     if (zoomResetBtn) {
       zoomResetBtn.textContent = `${Math.round(scale * 100)}%`;
     }
   }
 
   // Mouse wheel zoom
-  container.addEventListener('wheel', (e) => {
+  container.addEventListener('wheel', (e: WheelEvent) => {
     e.preventDefault();
 
     const rect = container.getBoundingClientRect();
@@ -160,8 +166,8 @@ function initializeZoomPan(overlay, container, wrapper) {
   });
 
   // Pan with mouse drag
-  container.addEventListener('mousedown', (e) => {
-    if (e.target.closest('.mermaid-diagram-wrapper') || e.target === container) {
+  container.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.target instanceof Element && (e.target.closest('.mermaid-diagram-wrapper') || e.target === container)) {
       isPanning = true;
       startX = e.clientX - translateX;
       startY = e.clientY - translateY;
@@ -170,7 +176,7 @@ function initializeZoomPan(overlay, container, wrapper) {
     }
   });
 
-  document.addEventListener('mousemove', (e) => {
+  document.addEventListener('mousemove', (e: MouseEvent) => {
     if (isPanning) {
       translateX = e.clientX - startX;
       translateY = e.clientY - startY;
@@ -207,33 +213,48 @@ function initializeZoomPan(overlay, container, wrapper) {
 }
 
 // Initialize control buttons
-function initializeControls(overlay, diagramWrapper) {
+function initializeControls(overlay: MermaidOverlay, diagramWrapper: HTMLElement): void {
   // Close button
-  overlay.querySelector('#close-overlay').addEventListener('click', () => {
-    overlay.remove();
-  });
+  const closeBtn = overlay.querySelector('#close-overlay');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      overlay.remove();
+    });
+  }
 
   // Zoom controls
-  overlay.querySelector('#zoom-in').addEventListener('click', () => {
-    overlay.zoomIn();
-  });
+  const zoomInBtn = overlay.querySelector('#zoom-in');
+  if (zoomInBtn) {
+    zoomInBtn.addEventListener('click', () => {
+      overlay.zoomIn();
+    });
+  }
 
-  overlay.querySelector('#zoom-out').addEventListener('click', () => {
-    overlay.zoomOut();
-  });
+  const zoomOutBtn = overlay.querySelector('#zoom-out');
+  if (zoomOutBtn) {
+    zoomOutBtn.addEventListener('click', () => {
+      overlay.zoomOut();
+    });
+  }
 
-  overlay.querySelector('#zoom-reset').addEventListener('click', () => {
-    overlay.zoomReset();
-  });
+  const zoomResetBtn = overlay.querySelector('#zoom-reset');
+  if (zoomResetBtn) {
+    zoomResetBtn.addEventListener('click', () => {
+      overlay.zoomReset();
+    });
+  }
 
   // Export to PNG
-  overlay.querySelector('#export-png').addEventListener('click', () => {
-    exportToPNG(diagramWrapper);
-  });
+  const exportBtn = overlay.querySelector('#export-png');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      exportToPNG(diagramWrapper);
+    });
+  }
 }
 
 // Export diagram to PNG
-function exportToPNG(diagramWrapper) {
+function exportToPNG(diagramWrapper: HTMLElement): void {
   const svgElement = diagramWrapper.querySelector('svg');
   if (!svgElement) {
     alert('No diagram to export');
@@ -241,7 +262,7 @@ function exportToPNG(diagramWrapper) {
   }
 
   // Clone the SVG to avoid modifying the original
-  const clonedSvg = svgElement.cloneNode(true);
+  const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
 
   // Get SVG dimensions
   const bbox = svgElement.getBBox();
@@ -249,8 +270,8 @@ function exportToPNG(diagramWrapper) {
   const height = bbox.height || svgElement.height.baseVal.value || 600;
 
   // Set dimensions on cloned SVG
-  clonedSvg.setAttribute('width', width);
-  clonedSvg.setAttribute('height', height);
+  clonedSvg.setAttribute('width', width.toString());
+  clonedSvg.setAttribute('height', height.toString());
   clonedSvg.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${width} ${height}`);
 
   // Serialize SVG to string
@@ -264,6 +285,11 @@ function exportToPNG(diagramWrapper) {
   canvas.height = height * 2;
   const ctx = canvas.getContext('2d');
 
+  if (!ctx) {
+    alert('Failed to create canvas context');
+    return;
+  }
+
   const img = new Image();
   img.onload = () => {
     // Fill white background
@@ -275,6 +301,10 @@ function exportToPNG(diagramWrapper) {
 
     // Convert to PNG and download
     canvas.toBlob((blob) => {
+      if (!blob) {
+        alert('Failed to create PNG');
+        return;
+      }
       const pngUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.download = `mermaid-diagram-${Date.now()}.png`;
@@ -291,12 +321,15 @@ function exportToPNG(diagramWrapper) {
 }
 
 // Make overlay draggable
-function makeOverlayDraggable(overlay, header) {
+function makeOverlayDraggable(overlay: HTMLElement, header: HTMLElement): void {
   let isDragging = false;
-  let currentX, currentY, initialX, initialY;
+  let currentX: number;
+  let currentY: number;
+  let initialX: number;
+  let initialY: number;
 
-  header.addEventListener('mousedown', (e) => {
-    if (e.target === header || e.target.className === 'mermaid-title') {
+  header.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.target === header || (e.target instanceof Element && e.target.className === 'mermaid-title')) {
       isDragging = true;
       initialX = e.clientX - overlay.offsetLeft;
       initialY = e.clientY - overlay.offsetTop;
@@ -304,7 +337,7 @@ function makeOverlayDraggable(overlay, header) {
     }
   });
 
-  document.addEventListener('mousemove', (e) => {
+  document.addEventListener('mousemove', (e: MouseEvent) => {
     if (isDragging) {
       e.preventDefault();
       currentX = e.clientX - initialX;
@@ -324,15 +357,18 @@ function makeOverlayDraggable(overlay, header) {
 }
 
 // Make overlay resizable
-function makeOverlayResizable(overlay) {
+function makeOverlayResizable(overlay: HTMLElement): void {
   const resizer = document.createElement('div');
   resizer.className = 'mermaid-resizer';
   overlay.appendChild(resizer);
 
   let isResizing = false;
-  let startX, startY, startWidth, startHeight;
+  let startX: number;
+  let startY: number;
+  let startWidth: number;
+  let startHeight: number;
 
-  resizer.addEventListener('mousedown', (e) => {
+  resizer.addEventListener('mousedown', (e: MouseEvent) => {
     isResizing = true;
     startX = e.clientX;
     startY = e.clientY;
@@ -341,7 +377,7 @@ function makeOverlayResizable(overlay) {
     e.preventDefault();
   });
 
-  document.addEventListener('mousemove', (e) => {
+  document.addEventListener('mousemove', (e: MouseEvent) => {
     if (isResizing) {
       const width = startWidth + (e.clientX - startX);
       const height = startHeight + (e.clientY - startY);
@@ -357,7 +393,7 @@ function makeOverlayResizable(overlay) {
 }
 
 // Listen for messages from background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: RenderMermaidMessage) => {
   if (message.action === 'renderMermaid') {
     createMermaidOverlay(message.mermaidCode);
   }
