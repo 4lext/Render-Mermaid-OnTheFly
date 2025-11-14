@@ -92,11 +92,48 @@ async function createMermaidOverlay(mermaidCode: string): Promise<void> {
         error instanceof Error &&
         /Parse error|Lexical error|Syntax error/i.test(error.message);
       
+      // Generate helpful suggestions based on the error
+      let suggestions = '';
+      if (isMermaidError && error instanceof Error) {
+        const errorMsg = error.message.toLowerCase();
+        const suggestionsList: string[] = [];
+        
+        if (errorMsg.includes('newline') || errorMsg.includes('node_string')) {
+          suggestionsList.push('Check for incomplete edge definitions (e.g., <code>--&gt;|label|</code> should be on a single line)');
+          suggestionsList.push('Ensure edge labels are not split across multiple lines');
+        }
+        
+        if (errorMsg.includes('parse error')) {
+          suggestionsList.push('Verify all nodes have proper definitions (e.g., <code>A[Label]</code>)');
+          suggestionsList.push('Check that all edges use valid syntax (e.g., <code>--&gt;</code>, <code>--&gt;|label|</code>)');
+        }
+        
+        if (errorMsg.includes('expecting')) {
+          suggestionsList.push('Look for missing or extra characters in the diagram syntax');
+        }
+        
+        // Add general suggestions
+        suggestionsList.push('Make sure the diagram type is specified (e.g., <code>flowchart TD</code>, <code>graph LR</code>)');
+        suggestionsList.push('Verify the syntax against <a href="https://mermaid.js.org/" target="_blank" style="color: #667eea;">Mermaid documentation</a>');
+        
+        if (suggestionsList.length > 0) {
+          suggestions = '<div style="margin-top: 15px;"><strong>Suggestions:</strong><ul style="margin: 5px 0; padding-left: 20px;">' +
+            suggestionsList.map(s => `<li style="margin: 5px 0;">${s}</li>`).join('') +
+            '</ul></div>';
+        }
+      }
+      
       diagramWrapper.innerHTML = `
         <div class="mermaid-error">
-          <h3>${isMermaidError ? 'Error rendering Mermaid diagram' : 'Unexpected error while rendering'}</h3>
-          <p>${errorMessage}</p>
-          <pre>${mermaidCode}</pre>
+          <h3 style="color: #d32f2f; margin: 0 0 10px 0;">${isMermaidError ? '⚠️ Mermaid Syntax Error' : '⚠️ Rendering Error'}</h3>
+          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0; border-radius: 4px;">
+            <strong>Error:</strong> ${errorMessage}
+          </div>
+          ${suggestions}
+          <details style="margin-top: 15px;">
+            <summary style="cursor: pointer; color: #667eea; font-weight: bold;">Show diagram code</summary>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; margin-top: 10px;">${mermaidCode}</pre>
+          </details>
         </div>
       `;
       

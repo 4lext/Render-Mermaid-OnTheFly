@@ -49,6 +49,10 @@ dist/
 *.temp
 .cache/
 
+# Demo/test files
+test-demo.html
+error-display-demo.html
+
 # OS
 Thumbs.db
 .DS_Store
