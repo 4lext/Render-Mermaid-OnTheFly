@@ -86,14 +86,24 @@ async function createMermaidOverlay(mermaidCode: string): Promise<void> {
       diagramWrapper.innerHTML = svg;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Only treat it as a mermaid parse error if it looks like one.
+      const isMermaidError =
+        error instanceof Error &&
+        /Parse error|Lexical error|Syntax error/i.test(error.message);
+      
       diagramWrapper.innerHTML = `
         <div class="mermaid-error">
-          <h3>Error rendering Mermaid diagram</h3>
+          <h3>${isMermaidError ? 'Error rendering Mermaid diagram' : 'Unexpected error while rendering'}</h3>
           <p>${errorMessage}</p>
           <pre>${mermaidCode}</pre>
         </div>
       `;
-      console.error('Mermaid rendering error:', error);
+      
+      console.error(
+        isMermaidError ? 'Mermaid rendering error:' : 'Unexpected rendering error:',
+        error
+      );
     }
 
     // Initialize zoom and pan functionality
