@@ -13,7 +13,13 @@ module.exports = {
         use: 'ts-loader',
         exclude: /node_modules/
       }
-    ]
+    ],
+    // Convert dynamic imports to regular imports
+    parser: {
+      javascript: {
+        dynamicImportMode: 'eager'
+      }
+    }
   },
   resolve: {
     extensions: ['.ts', '.js']
@@ -33,6 +39,8 @@ module.exports = {
     })
   ],
   optimization: {
-    minimize: false // Keep code readable for debugging
+    minimize: false, // Keep code readable for debugging
+    splitChunks: false, // Disable code splitting to bundle everything in single files
+    runtimeChunk: false // Disable runtime chunk to avoid dynamic loading issues
   }
 };
