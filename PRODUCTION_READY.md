@@ -19,9 +19,11 @@ The **Render Mermaid OnTheFly** Chrome extension has been successfully modernize
 - ✅ Added npm scripts for build, dev, and test
 
 ### 3. Dependency Management
-- ✅ Bundled Mermaid.js directly (~727KB)
+- ✅ Bundled Mermaid.js directly (~5.9MB)
 - ✅ No external CDN dependencies at runtime
 - ✅ All dependencies managed through npm
+- ✅ Fixed code splitting issue - all code bundled into single files
+- ✅ No dynamic chunk loading that could fail in Chrome extensions
 
 ### 4. Manifest v3 Compliance
 - ✅ Verified manifest uses version 3
@@ -52,8 +54,7 @@ The **Render Mermaid OnTheFly** Chrome extension has been successfully modernize
 ```
 dist/
 ├── background.js      # 0.77 KB - Service worker
-├── content.js         # 726.79 KB - Content script with bundled Mermaid
-├── *.js              # Webpack chunks (auto-loaded)
+├── content.js         # 5.9 MB - Content script with fully bundled Mermaid
 ├── styles.css        # 3.58 KB - Overlay styles
 ├── manifest.json     # Extension manifest
 └── icons/            # Extension icons (16, 48, 128px)
@@ -183,8 +184,8 @@ src/
 
 ## 📈 Performance
 
-- **Bundle size**: ~727KB (includes full Mermaid library)
-- **Load time**: < 1 second
+- **Bundle size**: ~5.9MB (includes full Mermaid library with all diagram types)
+- **Load time**: < 2 seconds
 - **Rendering**: 1-3 seconds for complex diagrams
 - **Memory**: Efficient, cleaned up when overlay closed
 
